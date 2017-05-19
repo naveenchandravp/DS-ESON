@@ -12,6 +12,10 @@
  */
 package org.eclipse.emf.eson.ui.wizard;
 
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
@@ -33,6 +37,8 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardPage;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -46,223 +52,286 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.dialogs.ContainerSelectionDialog;
 
+import com.google.common.collect.Lists;
+
 public class EFactoryNewFileWizardPage extends WizardPage {
 
-	private /* TODO @Inject */ EPackageRegistry ePackageRegistry = EFactoryActivator.getInstance().getInjector(EFactoryActivator.ORG_ECLIPSE_EMF_ESON_EFACTORY).getInstance(EPackageRegistry.class); // TODO
-	
-	private Text containerText;
-	private Text fileText;
-	private ISelection selection;
-	private Combo metamodelCombo;
+    private /* TODO @Inject */ EPackageRegistry ePackageRegistry = EFactoryActivator.getInstance().getInjector(EFactoryActivator.ORG_ECLIPSE_EMF_ESON_EFACTORY).getInstance(EPackageRegistry.class); // TODO
 
-	public EFactoryNewFileWizardPage(ISelection selection) {
-		super("wizardPage");
-		setTitle("ESON Model Resource File");
-		setDescription("This wizard creates a new *.eson file.");
-		this.selection = selection;
-	}
+    private Text containerText;
+    private Text fileText;
+    private ISelection selection;
+    private Combo metamodelCombo;
+    public EFactoryNewFileWizardPage(ISelection selection) {
+        super("wizardPage");
+        setTitle("ESON Model Resource File");
+        setDescription("This wizard creates a new *.eson file.");
+        this.selection = selection;
+    }
 
-	public void createControl(Composite parent) {
-		Composite container = new Composite(parent, SWT.NULL);
-		GridLayout layout = new GridLayout();
-		container.setLayout(layout);
-		layout.numColumns = 3;
-		layout.verticalSpacing = 9;
-		Label label = new Label(container, SWT.NULL);
-		label.setText("&Container:");
+    public void createControl(Composite parent) {
+        Composite container = new Composite(parent, SWT.NULL);
+        GridLayout layout = new GridLayout();
+        container.setLayout(layout);
+        layout.numColumns = 3;
+        layout.verticalSpacing = 9;
+        Label label = new Label(container, SWT.NULL);
+        label.setText("&Container:");
 
-		containerText = new Text(container, SWT.BORDER | SWT.SINGLE);
-		GridData gd = new GridData(GridData.FILL_HORIZONTAL);
-		containerText.setLayoutData(gd);
-		containerText.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent e) {
-				dialogChanged();
-			}
-		});
+        containerText = new Text(container, SWT.BORDER | SWT.SINGLE);
+        GridData gd = new GridData(GridData.FILL_HORIZONTAL);
+        containerText.setLayoutData(gd);
+        containerText.addModifyListener(new ModifyListener() {
+            public void modifyText(ModifyEvent e) {
+                dialogChanged();
+            }
+        });
 
-		Button button = new Button(container, SWT.PUSH);
-		button.setText("Browse...");
-		button.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(SelectionEvent e) {
-				handleBrowse();
-			}
-		});
-		label = new Label(container, SWT.NULL);
-		label.setText("&File name:");
+        Button button = new Button(container, SWT.PUSH);
+        button.setText("Browse...");
+        button.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                handleBrowse();
+            }
+        });
+        label = new Label(container, SWT.NULL);
+        label.setText("&File name:");
 
-		fileText = new Text(container, SWT.BORDER | SWT.SINGLE);
-		gd = new GridData(GridData.FILL_HORIZONTAL);
-		gd.horizontalSpan = 2;
-		fileText.setLayoutData(gd);
-		fileText.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent e) {
-				dialogChanged();
-			}
-		});
+        fileText = new Text(container, SWT.BORDER | SWT.SINGLE);
+        gd = new GridData(GridData.FILL_HORIZONTAL);
+        gd.horizontalSpan = 2;
+        fileText.setLayoutData(gd);
+        fileText.addModifyListener(new ModifyListener() {
+            public void modifyText(ModifyEvent e) {
+                dialogChanged();
+            }
+        });
 
-		label = new Label(container, SWT.NULL);
-		label.setText("&EPackage URI:");
+        label = new Label(container, SWT.NULL);
+        label.setText("&EPackage URI:");
 
-		metamodelCombo = new Combo(container, SWT.NONE);
-		for (String ePackageURI : ePackageRegistry.getNsURIs()) {
-			metamodelCombo.add(ePackageURI);
-		}
-		gd = new GridData(GridData.FILL_HORIZONTAL);
-		gd.horizontalSpan = 2;
-		metamodelCombo.setLayoutData(gd);
-		metamodelCombo.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent e) {
-				dialogChanged();
-			}
-		});
+        metamodelCombo = new Combo(container, SWT.NONE);
+        List<String> packageURIs = getPackageURIs();
+        for (String ePackageURI : packageURIs) {
+            metamodelCombo.add(ePackageURI);
+        }
 
-		initialize();
-		dialogChanged();
-		setControl(container);
-	}
+        gd = new GridData(GridData.FILL_HORIZONTAL);
+        gd.horizontalSpan = 2;
+        metamodelCombo.setLayoutData(gd);
 
-	/**
-	 * Tests if the current workbench selection is a suitable container to use.
-	 */
-	private void initialize() {
-		if (selection != null && selection.isEmpty() == false
-				&& selection instanceof IStructuredSelection) {
-			IStructuredSelection ssel = (IStructuredSelection) selection;
-			if (ssel.size() > 1)
-				return;
-			Object obj = ssel.getFirstElement();
-			if (obj instanceof IResource) {
-				setContainerText((IResource) obj);
-			} else if (obj instanceof IPackageFragment) {
-				IPackageFragment packageFragment = (IPackageFragment) obj;
-				try {
-					setContainerText(packageFragment.getCorrespondingResource());
-				} catch (JavaModelException e) {
-					EFactoryLog.logError(e);
-				}
-			}
-		}
-		fileText.setText("example.eson");
-	}
+        metamodelCombo.addSelectionListener(new SelectionAdapter() {
 
-	private void setContainerText(IResource resource) {
-		IContainer container;
-		if (resource instanceof IFile) {
-			IFile file = (IFile) resource;
-			initPackageUri(file);
-		}
-		if (resource instanceof IContainer) {
-			container = (IContainer) resource;
-		} else {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                dialogChanged();
+            }
+        });
 
-			container = resource.getParent();
-		}
-		containerText.setText(container.getFullPath().toString());
-	}
+        metamodelCombo.addKeyListener(new KeyListener() {
 
-	private void initPackageUri(IFile file) {
-		String fileExtension = file.getFileExtension().toLowerCase();
-		if (fileExtension.equals("eson")) {
-			Resource resource = loadResource(file);
-			if (resource != null && !resource.getContents().isEmpty()) {
-				initPackageUri(resource.getContents().get(0));
-			}
-		}
+            @Override
+            public void keyReleased(KeyEvent e) {
+                filterCombo();
+            }
 
-	}
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // TODO Auto-generated method stub
 
-	private void initPackageUri(EObject eObject) {
-		if (eObject instanceof EPackage) {
-			EPackage ePackage = (EPackage) eObject;
-			initPackageUri(ePackage);
-		} else {
-			initPackageUri(eObject.eClass().getEPackage());
-		}
+            }
+        });
 
-	}
+        initialize();
+        dialogChanged();
+        setControl(container);
+    }
 
-	private void initPackageUri(EPackage ePackage) {
-		metamodelCombo.setText(ePackage.getNsURI());
-	}
+    /**
+     * @return
+     */
+    private List<String> getPackageURIs() {
+        List<String> packageURIs = null;
+        if (packageURIs == null || packageURIs.size() <=0)
+        {
+            packageURIs = Lists.newArrayList(ePackageRegistry.getNsURIs());
+        }
+        Collections.sort(packageURIs);
+        return packageURIs;
+    }
 
-	private Resource loadResource(IFile file) {
-		ResourceSet rs = new ResourceSetImpl();
-		return rs.getResource(URI.createPlatformResourceURI(file.getFullPath().toString(), true), true);
-	}
+    private synchronized void filterCombo()
+    {
+        String comboText = metamodelCombo.getText();
+        if(comboText == null || comboText.length() <= 0)
+            dialogChanged();
+        String as[];
+        int j = (as = metamodelCombo.getItems()).length;
+        for(int i = 0; i < j; i++)
+        {
+            String item = as[i];
+            metamodelCombo.remove(item);
+        }
 
-	/**
-	 * Uses the standard container selection dialog to choose the new value for
-	 * the container field.
-	 */
-	private void handleBrowse() {
-		ContainerSelectionDialog dialog = new ContainerSelectionDialog(
-				getShell(), ResourcesPlugin.getWorkspace().getRoot(), false,
-				"Select new file container");
-		if (dialog.open() == Window.OK) {
-			Object[] result = dialog.getResult();
-			if (result.length == 1) {
-				containerText.setText(((Path) result[0]).toString());
-			}
-		}
-	}
+        for(Iterator<String> iterator = getPackageURIs().iterator(); iterator.hasNext();)
+        {
+            String ePackageURI = (String)iterator.next();
+            if(ePackageURI.contains(comboText))
+                metamodelCombo.add(ePackageURI);
+        }
 
-	/**
-	 * Ensures that both text fields are set.
-	 */
+    }
 
-	private void dialogChanged() {
-		IResource container = ResourcesPlugin.getWorkspace().getRoot()
-				.findMember(new Path(getContainerName()));
-		String fileName = getFileName();
+    /**
+     * Tests if the current workbench selection is a suitable container to use.
+     */
+    private void initialize() {
+        if (selection != null && selection.isEmpty() == false
+                && selection instanceof IStructuredSelection) {
+            IStructuredSelection ssel = (IStructuredSelection) selection;
+            if (ssel.size() > 1)
+                return;
+            Object obj = ssel.getFirstElement();
+            if (obj instanceof IResource) {
+                setContainerText((IResource) obj);
+            } else if (obj instanceof IPackageFragment) {
+                IPackageFragment packageFragment = (IPackageFragment) obj;
+                try {
+                    setContainerText(packageFragment.getCorrespondingResource());
+                } catch (JavaModelException e) {
+                    EFactoryLog.logError(e);
+                }
+            }
+        }
+        fileText.setText("example.eson");
+    }
 
-		if (getContainerName().length() == 0) {
-			updateStatus("File container must be specified");
-			return;
-		}
-		if (container == null
-				|| (container.getType() & (IResource.PROJECT | IResource.FOLDER)) == 0) {
-			updateStatus("File container must exist");
-			return;
-		}
-		if (!container.isAccessible()) {
-			updateStatus("Project must be writable");
-			return;
-		}
-		if (fileName.length() == 0) {
-			updateStatus("File name must be specified");
-			return;
-		}
-		if (fileName.replace('\\', '/').indexOf('/', 1) > 0) {
-			updateStatus("File name must be valid");
-			return;
-		}
+    private void setContainerText(IResource resource) {
+        IContainer container;
+        if (resource instanceof IFile) {
+            IFile file = (IFile) resource;
+            initPackageUri(file);
+        }
+        if (resource instanceof IContainer) {
+            container = (IContainer) resource;
+        } else {
 
-		int dotLoc = fileName.lastIndexOf('.');
-		if (dotLoc != -1) {
-			String ext = fileName.substring(dotLoc + 1);
-			if (ext.equalsIgnoreCase("eson") == false) {
-				updateStatus("File extension must be \"eson\"");
-				return;
-			}
-		}
-		updateStatus(null);
-	}
+            container = resource.getParent();
+        }
+        containerText.setText(container.getFullPath().toString());
+    }
 
-	private void updateStatus(String message) {
-		setErrorMessage(message);
-		setPageComplete(message == null);
-	}
+    private void initPackageUri(IFile file) {
+        String fileExtension = file.getFileExtension().toLowerCase();
+        if (fileExtension.equals("eson")) {
+            Resource resource = loadResource(file);
+            if (resource != null && !resource.getContents().isEmpty()) {
+                initPackageUri(resource.getContents().get(0));
+            }
+        }
 
-	public String getContainerName() {
-		return containerText.getText();
-	}
+    }
 
-	public String getFileName() {
-		return fileText.getText();
-	}
+    private void initPackageUri(EObject eObject) {
+        if (eObject instanceof EPackage) {
+            EPackage ePackage = (EPackage) eObject;
+            initPackageUri(ePackage);
+        } else {
+            initPackageUri(eObject.eClass().getEPackage());
+        }
 
-	public String getPackageUri() {
-		return metamodelCombo.getText();
-	}
+    }
+
+    private void initPackageUri(EPackage ePackage) {
+        metamodelCombo.setText(ePackage.getNsURI());
+    }
+
+    private Resource loadResource(IFile file) {
+        ResourceSet rs = new ResourceSetImpl();
+        return rs.getResource(URI.createPlatformResourceURI(file.getFullPath().toString(), true), true);
+    }
+
+    /**
+     * Uses the standard container selection dialog to choose the new value for
+     * the container field.
+     */
+    private void handleBrowse() {
+        ContainerSelectionDialog dialog = new ContainerSelectionDialog(
+                getShell(), ResourcesPlugin.getWorkspace().getRoot(), false,
+                "Select new file container");
+        if (dialog.open() == Window.OK) {
+            Object[] result = dialog.getResult();
+            if (result.length == 1) {
+                containerText.setText(((Path) result[0]).toString());
+            }
+        }
+    }
+
+    /**
+     * Ensures that both text fields are set.
+     */
+
+    private void dialogChanged() {
+        IResource container = ResourcesPlugin.getWorkspace().getRoot()
+                .findMember(new Path(getContainerName()));
+        String fileName = getFileName();
+
+        if (getContainerName().length() == 0) {
+            updateStatus("File container must be specified");
+            return;
+        }
+        if (container == null
+                || (container.getType() & (IResource.PROJECT | IResource.FOLDER)) == 0) {
+            updateStatus("File container must exist");
+            return;
+        }
+        if (!container.isAccessible()) {
+            updateStatus("Project must be writable");
+            return;
+        }
+        if (fileName.length() == 0) {
+            updateStatus("File name must be specified");
+            return;
+        }
+        if (fileName.replace('\\', '/').indexOf('/', 1) > 0) {
+            updateStatus("File name must be valid");
+            return;
+        }
+
+        int dotLoc = fileName.lastIndexOf('.');
+        if (dotLoc != -1) {
+            String ext = fileName.substring(dotLoc + 1);
+            if (ext.equalsIgnoreCase("eson") == false) {
+                updateStatus("File extension must be \"eson\"");
+                return;
+            }
+        }
+        if(metamodelCombo.getText() == null || metamodelCombo.getText().length() <= 0)
+        {
+            updateStatus("A package URI must be selected!");
+            return;
+        } else
+        {
+            updateStatus(null);
+            return;
+        }
+    }
+
+    private void updateStatus(String message) {
+        setErrorMessage(message);
+        setPageComplete(message == null);
+    }
+
+    public String getContainerName() {
+        return containerText.getText();
+    }
+
+    public String getFileName() {
+        return fileText.getText();
+    }
+
+    public String getPackageUri() {
+        return metamodelCombo.getText();
+    }
 }
